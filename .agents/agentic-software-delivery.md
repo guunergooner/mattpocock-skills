@@ -304,3 +304,134 @@ QA Engineer 从 Ticket、Product Spec、PR 和复现说明出发，不直接采�
 - 构建、部署和回滚的实际执行属于 CI/CD。
 
 这套模型保持 5 个一目了然的软件工程角色，同时保留现有 skills 中最重要的设计：共享领域语言、通过原型消除不确定性、tracer-bullet Tickets、依赖 frontier、面向行为的 red-green 实现、严格问题诊断，以及独立的 Spec / Standards 双轴评审。
+
+## Multica 父子 Issue 编排
+
+Multica 的父子 Issue 和 `stage` 是这套流程的执行骨架，不再额外创建流程控制 Agent：
+
+- 根 Issue 代表一次完整交付，由 Technical Project Manager 负责。
+- 每个角色的实际工作都是根 Issue 的子 Issue；子 Issue 必须只产生一种主要角色交付物。
+- `stage` 表示阶段门禁，同一阶段可并行，不同阶段严格按序推进。
+- 当前最低未完成阶段的全部子 Issue 进入 `done` 或 `cancelled` 后，Multica 才通知并唤醒父 Issue 负责人。
+- 后续阶段初始状态为 `backlog`。Technical Project Manager 检查前序产物后，显式提升为 `todo`；平台不会自行启动下一阶段。
+- 子 Issue 到达 `in_review` 表示 Agent 已交付、等待验收；`done` 由验收方或 PR 合并关闭意图推进。
+
+推荐的最小父子结构：
+
+```text
+根 Issue：Technical Project Manager（全过程编排）
+├── Stage 1：Product Manager — Product Spec
+├── Stage 2：Tech Lead — ADR、技术方案和实现 Tickets
+├── Stage 3：Software Engineer — 实现 Ticket A（可并行）
+├── Stage 3：Software Engineer — 实现 Ticket B（可并行）
+└── Stage 4：QA Engineer — 独立 QA Report
+```
+
+若一个角色需要多张 Ticket，只拆分可独立验收的交付单元，不为讨论、同步或简单文件搬运创建 Issue。实现 Ticket 必须挂在同一个交付根 Issue 下，并通过 `stage` 表达真实顺序。
+
+### 子 Issue 描述契约
+
+每张子 Issue 必须明确以下内容，使接手 Agent 不依赖聊天历史：
+
+```markdown
+## 角色
+<标准软件工程角色>
+
+## 目标
+<本 Issue 唯一要完成的结果>
+
+## 输入
+- <上游 Issue 标识与产物路径>
+
+## 输出
+- <结构化结论或状态>
+
+## 项目交付物
+- <仓库内必须新增或修改的路径>
+
+## 验收标准
+- [ ] <可观察、可复验的条件>
+
+## 依赖与阶段
+- blocked_by: <Issue 标识或 none>
+- stage: <正整数>
+
+## 约束
+- <允许修改范围、禁止事项和停止条件>
+```
+
+Issue 负责调度和状态，仓库文件负责持久化交付物。长规格、ADR、诊断报告或 QA 报告不得只存在于 Issue 评论中；评论只提供结论和文件、PR 链接。
+
+## 项目交付物存储格式
+
+每个交付根 Issue 使用一个稳定目录：
+
+```text
+issues/<YYYY-MM-DD>/<issue-slug>/
+├── README.md
+├── adr/
+│   └── <NNNN>-<decision-slug>.md
+└── issue/
+    ├── 01-product-spec.md
+    ├── 02-technical-plan.md
+    ├── 03-implementation-report.md
+    └── 04-qa-report.md
+```
+
+`issue-slug` 使用小写 kebab-case，创建后不因标题微调而改变。用户给出的参考目录 `issues/2026-08-31/add-sandbox-provider-multiple-regions/{adr,issue}` 在当前 Multica `main` 及本地 Git 对象中未找到，因此这里沿用其明确表达的日期、主题、`adr` 和 `issue` 两类目录约束，并补充稳定的入口文件与编号规则。
+
+### 文件归属
+
+| Agent | 输入 | 输出 | 仓库交付物 |
+| --- | --- | --- | --- |
+| Technical Project Manager | 根 Issue、所有子 Issue、PR/CI/QA 状态 | 阶段决策、frontier、阻塞与关闭结论 | `README.md`：索引、阶段、Issue/PR/产物链接 |
+| Product Manager | 原始需求、业务背景、现有上下文 | 可验收 Product Spec | `issue/01-product-spec.md` |
+| Tech Lead | 已批准 Product Spec、代码库和工程约束 | ADR、技术方案、纵向 Tickets | `adr/<NNNN>-*.md`、`issue/02-technical-plan.md` |
+| Software Engineer | 一张 ready Ticket、规格、ADR、基线 | 代码、测试、commit/PR 和真实验证证据 | 代码与测试；`issue/03-implementation-report.md` 仅存摘要和证据链接 |
+| QA Engineer | 固定基线、候选 PR、规格和工程规范 | 独立 pass/fail、findings 和复验结果 | `issue/04-qa-report.md` |
+
+`README.md` 至少包含根 Issue、子 Issue 表、当前阶段、分支、PR、ADR 和四类角色交付物链接。文件内引用 Issue 时使用平台可路由标识；实现报告不得复制完整日志，只保存命令、结果和持久化证据位置。
+
+## 研发分支与 PR 规则
+
+分支统一使用：
+
+```text
+<type>/<YYYY-MM-DD>/<issue-slug>
+```
+
+允许的 `type`：
+
+| 类型 | 用途 |
+| --- | --- |
+| `feat` | 新功能 |
+| `fix` | 缺陷修复 |
+| `docs` | 文档变更 |
+| `style` | 不影响行为的格式变更 |
+| `refactor` | 不改变外部行为的代码重构 |
+| `test` | 新增或修改测试 |
+| `chore` | 构建、依赖和工程任务 |
+
+例如：
+
+```text
+feat/2026-08-31/add-sandbox-provider-multiple-regions
+```
+
+规则：
+
+- 日期取根 Issue 正式进入交付流程的日期，在同一交付内保持不变。
+- `issue-slug` 与交付物目录一致，使用小写 kebab-case。
+- 一个实现 Ticket 一个分支；若同一根 Issue 有多个并行实现 Ticket，在末尾增加稳定的 Ticket 后缀，避免共享工作树，例如 `<root-slug>-<issue-key-lowercase>`。
+- 分支名、PR 标题或 PR 正文至少一处包含 Multica Issue 标识，确保平台建立 Issue 与 PR 的链接。
+- 仅分支名包含 Issue 标识只会建立链接，不代表合并后关闭。需要合并后关闭时，在 PR 标题或正文写 `Closes <ISSUE-KEY>`。
+
+## Multica 全流程跟踪规则
+
+1. Technical Project Manager 创建根 Issue，并为 Product Manager 创建 Stage 1 子 Issue，状态为 `todo`。
+2. Tech Lead、Software Engineer、QA Engineer 的后续子 Issue 分别设置 Stage 2、3、4，初始状态为 `backlog`。
+3. 每个 Agent 开始工作时将自己的 Issue 更新为 `in_progress`；完成自身交付后更新为 `in_review`，不得直接用 Agent 声明替代验收。
+4. 验收通过后子 Issue 进入 `done`。阶段门禁关闭时，父 Issue 负责人读取所有交付物并决定是否提升下一阶段。
+5. QA 失败时，不创建“修复 Agent”：复用原实现 Issue 或创建新的 Software Engineer 修复子 Issue，写清 finding、回归 seam 和阶段。
+6. 根 Issue 只在全部验收、PR/CI 和 QA 证据完整后进入 `in_review`；最终 `done` 保留给人工验收或带关闭意图的 PR 合并。
+7. Issue 评论只报告结果、阻塞和链接；需要跨会话复用的规范与证据必须进入上述项目目录。
