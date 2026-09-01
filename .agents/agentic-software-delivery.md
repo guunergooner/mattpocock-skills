@@ -435,3 +435,190 @@ feat/2026-08-31/add-sandbox-provider-multiple-regions
 5. QA 失败时，不创建“修复 Agent”：复用原实现 Issue 或创建新的 Software Engineer 修复子 Issue，写清 finding、回归 seam 和阶段。
 6. 根 Issue 只在全部验收、PR/CI 和 QA 证据完整后进入 `in_review`；最终 `done` 保留给人工验收或带关闭意图的 PR 合并。
 7. Issue 评论只报告结果、阻塞和链接；需要跨会话复用的规范与证据必须进入上述项目目录。
+
+## Squad、Agent、Skill 分层模型
+
+参考 `agent-teams` 的产物驱动设计，并以 Melos 当前运行契约为边界，最终采用四层模型：
+
+| 层 | 只负责什么 | 不负责什么 | 运行时事实 |
+| --- | --- | --- | --- |
+| Squad | 流程状态机、条件路由、门禁、循环、升级和成员名册 | 不生产 PRD、设计、代码或测试报告 | Squad 分配、评论和 mention 都只唤醒 `leader_id`，不会自动 fan-out |
+| Agent | 一个标准工程角色的职责、输入、输出、停止条件 | 不复制完整流水线，不内置其他角色方法 | `instructions` 才进入运行时；`description` 只是目录摘要 |
+| Skill | 可复用的方法和固定产物格式 | 不定义团队状态机，不成为常驻角色 | Skill 创建后必须单独绑定 Agent；绑定使用 additive `add`，避免误用 replace-all `set` |
+| Artifact | 跨 Issue、跨会话的事实与证据 | 不负责触发 Agent | 使用仓库相对路径，可 diff、可评审、可被下游稳定引用 |
+
+### 最小 Squad
+
+常规软件交付 Squad 的固定成员仍为 5 个：
+
+```text
+Technical Project Manager（Squad Leader）
+├── Product Manager
+├── Tech Lead
+├── Software Engineer
+└── QA Engineer
+```
+
+DevOps/SRE 不是默认第六个 Agent。只有 Issue 范围明确包含 CI/CD、环境或基础设施交付时，才把现有 DevOps/SRE Agent 加入 Squad；确定性的构建、部署、回滚继续由工程系统执行。
+
+Squad Instructions 只注入 Leader，内容仅包含：
+
+1. 如何从 Issue 范围构建本次路由图。
+2. 如何创建、提升和验收子 Issue。
+3. 每个阶段的入口、出口和门禁。
+4. FAIL/BLOCKED 的 handoff 规则。
+5. 循环计数、人工介入和停止条件。
+
+角色专业知识、文件模板和工具步骤不得复制进 Squad Instructions。
+
+### Agent 与 Skills 绑定
+
+| Agent | 必备 Matt Pocock skills | 按需 skills | 禁止重复的流程知识 |
+| --- | --- | --- | --- |
+| Technical Project Manager | `ask-matt`、`triage` | `wayfinder` | 不在 Agent Instructions 复制专业实现方法 |
+| Product Manager | `to-spec`、`domain-modeling` | `grill-with-docs`、`research`、`prototype` | 不复制 Ticket 拆分和实现流程 |
+| Tech Lead | `codebase-design`、`to-tickets` | `wayfinder`、`improve-codebase-architecture` | 不复制产品澄清和编码步骤 |
+| Software Engineer | `implement`、`tdd` | `diagnosing-bugs`、`resolving-merge-conflicts`、`codebase-design` | 不复制全局门禁和最终验收规则 |
+| QA Engineer | `code-review` | 仓库已有的测试执行 skills | 不复制实现方法，不修改候选代码 |
+
+Skill 是能力模块，不是新的主流程包装。Artifact sync 若需要，应保持 local-first：只负责把已形成的 PRD、设计、API、测试或 CI 证据写到固定仓库路径并返回相对路径，不重新解释业务内容。
+
+## Pipeline Workflow 状态机
+
+```text
+INTAKE
+  → S0 REQUIREMENT → G0 范围与验收确认
+  → S1 DESIGN      → G1 设计门禁
+  → S2 BUILD       → G2 实现汇合门禁
+  → S3 DEV_VERIFY  → G2.5 CI / dev 环境门禁
+  → S4 QA          → G3 独立质量门禁
+  → HUMAN_REVIEW   → G4 人工验收
+  → DONE
+```
+
+### 阶段定义
+
+| 阶段 | 子 Issue / Owner | 输入 | 交付物 | PASS 条件 |
+| --- | --- | --- | --- | --- |
+| S0 | Product Manager | 根 Issue、业务上下文 | `01-product-spec.md` | 范围、非目标、AC 和 OP 清晰；关键 OP 关闭 |
+| S1 | Tech Lead | 已批准 Product Spec、代码库 | ADR、`02-technical-plan.md`、实现 Tickets | AC 可追溯到设计和验证 seam；依赖无环 |
+| S2 | Software Engineer | 单张 ready Ticket、ADR、基线 | 代码、测试、PR、`03-implementation-report.md` | 纵向行为完成，局部和仓库门禁通过 |
+| S3 | CI/CD + Software Engineer | 已 push 的候选分支 | CI 链接、dev 环境、复验证据 | 构建部署成功，原始场景在目标环境通过 |
+| S4 | QA Engineer | 固定基线、候选 PR、AC、dev 环境 | `04-qa-report.md` | Spec/Standards 均无 blocking finding |
+| G4 | Human | 全部产物、风险和剩余问题 | accept / reject / change-request | 人工明确批准，或授权的 PR 合并策略满足 |
+
+每个门禁只有四种结果：
+
+```yaml
+verdict: pass | fail | blocked | needs_human
+artifact: <repo-relative-path>
+artifact_version: <commit-sha>
+failed_acceptance_criteria: []
+evidence: []
+next_owner: <role-or-human>
+next_action: <single-action>
+```
+
+`pass` 才能推进；`fail` 必须路由回产物 owner；`blocked` 等待外部输入且不得消耗返工轮次；`needs_human` 立即停止 Agent 链路。
+
+## 路由与显式派发
+
+Melos Squad 不会把任务自动广播给成员，Leader 必须执行以下显式动作：
+
+1. 读取根 Issue 和已存在的产物索引。
+2. 根据范围裁剪本次角色图；缺失角色必须记录 `N/A + reason`，不得静默跳过。
+3. 为每个独立产物创建一个子 Issue；Stage 1 为 `todo`，后续 Stage 为 `backlog`。
+4. 在子 Issue 中写清精确输入版本、输出路径、PASS 条件、修改边界和 `blocked_by`。
+5. 当前阶段全部通过后，Leader 才把下一 Stage 的 ready Issue 提升为 `todo`。
+6. 同一产物只允许一个 owner；可并行的必须修改互不冲突的产物或使用独立分支。
+
+派发包必须满足：
+
+```yaml
+work_item: <child-issue-key>
+role: <standard-role>
+stage: <N>
+attempt: <1..max_attempts>
+input_refs:
+  - path: <repo-relative-path>
+    version: <commit-sha>
+output_path: <repo-relative-path>
+acceptance_criteria: [AC-...]
+verification: []
+change_boundary: []
+blocked_by: []
+```
+
+## 失败分类与 Handoff
+
+Leader 不得把所有失败都简单退回 Software Engineer。先分类，再选择唯一下一责任方：
+
+| 失败类型 | 判定特征 | Handoff | 是否增加产物 attempt |
+| --- | --- | --- | --- |
+| `transient` | 网络超时、临时服务不可用、偶发依赖下载失败 | 原 Agent 重试同一 Issue | 否；增加 transient retry |
+| `implementation_defect` | 设计正确，但行为、测试或代码不满足 AC | Software Engineer | 是 |
+| `test_defect` | 用例、环境数据或 QA 结论错误 | QA Engineer | 是 |
+| `design_gap` | seam、接口、依赖或影响面设计错误 | Tech Lead；其下游 PASS 全部失效 | 是 |
+| `requirement_gap` | 范围、规则或 AC 缺失/冲突 | Product Manager；回到 G0 | 是 |
+| `environment_blocker` | 权限、平台、CI、dev 环境不可用 | Technical Project Manager 转交现有平台 owner | 否，状态为 blocked |
+| `risk_decision` | 安全、数据、合规、生产发布或架构级取舍 | Human | 不再自动循环 |
+
+Handoff 不是复制全部上下文或口头 @mention。Leader 更新/创建目标子 Issue，只传：失败门禁、失败 AC、证据、当前产物版本、必须修复的清单、禁止扩大范围。原 Issue 保留历史并链接新 Issue。
+
+任何上游产物发生实质修改后，下游基于旧版本得到的 PASS 全部失效：
+
+```text
+Product Spec changed → invalidate G1, G2, G2.5, G3
+ADR / technical plan changed → invalidate G2, G2.5, G3
+API / implementation changed → invalidate G2.5, G3
+test plan changed → invalidate G3
+```
+
+失效只重跑受影响的下游分支，不重新执行无影响的并行分支。
+
+## 有界 Loop 策略
+
+统一采用一个清晰阈值，避免“3 次 FAIL”和“返工超过 3 次”产生歧义：
+
+```yaml
+max_attempts_per_artifact: 3       # 包含首次交付
+max_transient_retries: 2           # 不计入 artifact attempt
+max_total_pipeline_restarts: 2     # 需求/设计改变导致的全链重启
+```
+
+循环算法：
+
+1. 首次交付为 `attempt=1`。
+2. 门禁 FAIL 后，Leader 写入结构化 finding，原 owner 进入下一 attempt。
+3. 新 attempt 必须引用上一轮 finding，并逐条标记 resolved / unresolved / rejected-with-reason。
+4. 同一 Artifact 第 3 次仍 FAIL，立即转 `needs_human`，不得创建第 4 次 Agent 返工。
+5. 临时故障最多原地重试 2 次；仍失败转 `blocked` 并升级平台 owner，不污染专业返工次数。
+6. 因需求或设计变化造成的全 Pipeline 重启最多 2 次；再次发生时暂停开发，要求人类重新确认范围、预算和优先级。
+7. 人工决定可为：批准例外、缩小范围、替换方案/owner、增加预算、取消 Issue。Leader 不得替人类选择。
+
+attempt 记录放在对应 Artifact 的修订记录和 Issue 评论中，不写入高信号 metadata；metadata 只保留长期 blocker、PR 或明确决策。
+
+## 人工审查介入点
+
+| 介入点 | 类型 | 触发条件 |
+| --- | --- | --- |
+| H0 范围确认 | 条件性 | Product Spec 存在关键 OP、范围变化或高成本交付 |
+| H1 风险审批 | 强制 | 安全、隐私、数据迁移、破坏性操作、生产发布、重大架构决策 |
+| H2 循环熔断 | 强制 | 任一 Artifact 第 3 次 FAIL，或全链第 2 次重启后再次需要重启 |
+| H3 最终验收 | 默认强制 | G3 PASS 后决定接受、合并、发布或继续修改 |
+
+进入人工审查时，Leader 将根 Issue 置于可见的 review/blocked 状态，并提供一份最小决策包：背景、当前版本、已通过门禁、未通过项、已尝试方案、风险、明确的 2–3 个可选决策及影响。人工未决期间不继续派发。
+
+## Squad Leader 核心 Instructions
+
+Leader 的持久 Instructions 应保持简短，完整方法交给绑定 skills：
+
+```text
+你是软件交付 Squad 的 Technical Project Manager，只负责范围路由、父子 Issue 编排、阶段门禁、handoff、循环熔断和人工升级，不生产专业产物。
+
+先从根 Issue 和仓库产物索引构建本次最小角色图。一个产物对应一个子 Issue；后续阶段保持 backlog，只有当前门禁 PASS 才提升。每次派发必须声明带版本输入、固定输出路径、AC、验证方式、修改边界和依赖。
+
+成员完成不等于阶段通过。你必须读取或复跑证据，输出 pass/fail/blocked/needs_human。FAIL 按 requirement_gap、design_gap、implementation_defect、test_defect、transient、environment_blocker、risk_decision 分类并 handoff 给唯一 owner。
+
+每个产物最多 3 次交付（含首次）；临时故障最多重试 2 次；全链最多重启 2 次。达到上限、安全/数据/发布风险或证据矛盾时立即停止自动循环并请求人工决定。不得亲自修改被判门产物，不得替人类批准最终交付。
+```
