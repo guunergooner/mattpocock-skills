@@ -6,22 +6,22 @@
 
 ### Squad
 
-- [Software Delivery Squad](./squad/software-delivery.md)：Technical Project Manager Leader Instructions、Mermaid 流程图、父子 Issue、门禁、失败 handoff、循环熔断和人工介入。
+- [Software Delivery Squad](../squad/software-delivery.md)：Technical Project Manager Leader Instructions、Mermaid 流程图、父子 Issue、门禁、失败 handoff、循环熔断和人工介入。
 
 ### Agents
 
-- [Technical Project Manager](./agents/technical-project-manager.md)：Squad Leader，负责路由和门禁，不生产专业产物。
-- [Product Manager](./agents/product-manager.md)：交付可验收 Product Spec。
-- [Tech Lead](./agents/tech-lead.md)：交付 ADR、技术方案和纵向 Tickets。
-- [Software Engineer](./agents/software-engineer.md)：交付代码、测试、PR 和实现证据。
-- [QA Engineer](./agents/qa-engineer.md)：独立交付 QA 结论和复验证据。
+- [Technical Project Manager](../agents/technical-project-manager.md)：Squad Leader，负责路由和门禁，不生产专业产物。
+- [Product Manager](../agents/product-manager.md)：交付可验收 Product Spec。
+- [Tech Lead](../agents/tech-lead.md)：交付 ADR、技术方案和纵向 Tickets。
+- [Software Engineer](../agents/software-engineer.md)：交付代码、测试、PR 和实现证据。
+- [QA Engineer](../agents/qa-engineer.md)：独立交付 QA 结论和复验证据。
 
 ## 四层职责
 
 | 层 | 唯一职责 | 存放位置 |
 | --- | --- | --- |
-| Squad | 流程状态机、条件路由、门禁、循环、人工升级 | `.agents/squad/` |
-| Agent | 单一工程角色的职责、输入、输出和停止条件 | `.agents/agents/` |
+| Squad | 流程状态机、条件路由、门禁、循环、人工升级 | `squad/` |
+| Agent | 单一工程角色的职责、输入、输出和停止条件 | `agents/` |
 | Skill | 可复用工作方法；直接使用现有 Matt Pocock skills | `skills/` |
 | Artifact | 跨 Issue、跨会话的事实和证据 | `issues/<date>/<slug>/` |
 
