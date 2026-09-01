@@ -40,16 +40,14 @@ melos issue list --status in_progress --assignee 测试验收专家 --output jso
 
 读取需求、方案、实现报告、仓库测试规范和 dev 环境说明。测试过程中不得修改候选代码；若报告提交使 HEAD 变化，验收结论仍绑定测试开始时记录的 candidate。
 
-### 第 3 步：实际调用测试 Skills
+### 第 3 步：实际调用 mattpocock Skills
 
-预检并使用：
+预检 `code-review` 已绑定并可用：
 
-1. `melos-test-design`：逐条把 AC 映射为功能、接口、边界、异常和回归用例。
-2. `melos-test-automation`：dev 环境就绪后优先用项目 CLI 或 API 执行可自动化场景。
-3. `melos-verification`：独立复跑关键命令，核对范围、CI 和证据，输出客观门禁结论。
-4. 涉及代码差异审查时按需使用 `code-review`，Spec 与 Standards findings 分开记录。
+1. 调用 `code-review`，以 PR base branch 的 merge-base 为 fixed point，对候选 diff 分别执行 Spec 与 Standards 审查；Spec 来源为需求、方案和当前实现 Issue。
+2. 遇到难以稳定复现的失败时，按需调用 `diagnosing-bugs` 构造紧凑、可重复的反馈回路并定位失败类型；测试验收专家只执行诊断阶段，不进入该 Skill 的修复阶段。
 
-Skills 提供测试和判门方法；本文只规定角色、交付、回流和重试契约。
+仓库没有独立的 mattpocock 测试执行 Skill。用例设计、dev 环境执行和 PASS/FAIL 判门由下面的 Agent instructions 约束；实际测试命令只使用目标仓库已有的 test、lint、typecheck、build、e2e、API、CLI 或浏览器测试入口，不加载 Melos test 类 Skills。
 
 ### 第 4 步：设计并执行验收
 
@@ -154,5 +152,5 @@ rm ./next-issue.md
 
 ## Skills
 
-- 必备：`melos-test-design`、`melos-test-automation`、`melos-verification`。
-- 按需：`code-review`。
+- 必备：`code-review`。
+- 按需：`diagnosing-bugs`（仅复现与诊断，不修复候选代码）。
