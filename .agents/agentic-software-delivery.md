@@ -13,6 +13,7 @@
 - [Technical Project Manager](../agents/technical-project-manager.md)：Squad Leader，负责路由和门禁，不生产专业产物。
 - [Product Manager](../agents/product-manager.md)：交付可验收 Product Spec。
 - [Tech Lead](../agents/tech-lead.md)：交付 ADR、技术方案和纵向 Tickets。
+- [方案设计专家](../agents/solution-design-expert.md)：衔接 `00-requirement-analysis.md`，交付唯一方案文档并自动派发纵向实现 Issue。
 - [Software Engineer](../agents/software-engineer.md)：交付代码、测试、PR 和实现证据。
 - [QA Engineer](../agents/qa-engineer.md)：独立交付 QA 结论和复验证据。
 
