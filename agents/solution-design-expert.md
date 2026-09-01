@@ -105,7 +105,7 @@ git push origin <branch-prefix>/<feature-slug>-<YYYYMMDD>
 
 push 成功后执行 `git rev-parse HEAD`，把实际 commit SHA 用于交接回执。push 失败时在当前 Issue 报告原因和本地 commit SHA，不得创建实现 Issue；解决后补推送。
 
-### 第 7 步：自动创建软件工程师子 Issue
+### 第 7 步：自动创建软件研发专家子 Issue
 
 仅在方案门禁通过且 push 成功后执行。每张 Ticket 先写入独立 UTF-8 文件 `./next-issue-<NN>.md`：
 
@@ -141,7 +141,7 @@ push 成功后执行 `git rev-parse HEAD`，把实际 commit SHA 用于交接回
 无阻塞 Ticket 立即启动：
 
 ```bash
-melos issue create --title "[软件工程师] <ticket-title>" --status todo --parent <CURRENT_ISSUE_ID> --assignee "软件工程师" --description-file ./next-issue-<NN>.md --output json
+melos issue create --title "[软件研发] <ticket-title>" --status todo --parent <CURRENT_ISSUE_ID> --assignee "软件研发专家" --description-file ./next-issue-<NN>.md --output json
 rm ./next-issue-<NN>.md
 ```
 
