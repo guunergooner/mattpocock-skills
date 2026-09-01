@@ -15,6 +15,7 @@
 - [Tech Lead](../agents/tech-lead.md)：交付 ADR、技术方案和纵向 Tickets。
 - [方案设计专家](../agents/solution-design-expert.md)：衔接 `00-requirement-analysis.md`，交付唯一方案文档并自动派发纵向实现 Issue。
 - [软件研发专家](../agents/software-development-expert.md)：按纵向 Ticket 交付代码、行为测试、实现报告和 PR，并自动交接测试验证。
+- [测试验收专家](../agents/test-acceptance-expert.md)：在 dev 环境独立验收，PASS 交人工，FAIL 按责任角色回流，五次重试后熔断。
 - [Software Engineer](../agents/software-engineer.md)：交付代码、测试、PR 和实现证据。
 - [QA Engineer](../agents/qa-engineer.md)：独立交付 QA 结论和复验证据。
 
@@ -119,3 +120,25 @@ blocked_by: [<issue-key>]
 - Agent Instructions 只写职责与交付契约，方法直接绑定现有 Matt Pocock skills。
 - 创建 Agent 后需单独绑定 Skill，优先 additive `skills add`，避免 replace-all `skills set` 误删能力。
 - Artifact sync 若需要，只负责写固定仓库路径并返回相对路径，不重新解释业务内容。
+
+## 四角色闭环与重试
+
+模板化专家链路使用同一组计数：首次执行 `retry_count: 0`，`max_retries: 5`；正常正向交接原样透传，创建回流 Issue 的角色增加一次。
+
+```mermaid
+flowchart LR
+    R[需求分析专家] --> S[方案设计专家]
+    S --> D[软件研发专家]
+    D --> T[测试验收专家]
+    T -- PASS --> H[人工最终验收]
+    T -- requirement_gap<br/>retry + 1 --> R
+    T -- design_gap<br/>retry + 1 --> S
+    T -- implementation_defect<br/>retry + 1 --> D
+    T -- test_defect / environment_blocker<br/>retry + 1 --> T
+    R -- retry_count = 5 再失败 --> X[@all 人工介入]
+    S -- retry_count = 5 再失败 --> X
+    D -- retry_count = 5 再失败 --> X
+    T -- retry_count = 5 再失败 --> X
+```
+
+同一次失败只允许一个角色增加计数。`retry_count: 5` 再失败时禁止第 6 次重试，状态进入 `needs_human/blocked`，通过 `[@all](mention://all/all)` 发布五轮证据与决策选项。

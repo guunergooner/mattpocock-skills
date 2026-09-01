@@ -18,6 +18,8 @@
 上游产出物: docs/features/<feature-slug>/00-requirement-analysis.md
 工作分支: <branch-prefix>/<feature-slug>-<YYYYMMDD>
 上一阶段_issue: [<ISSUE_KEY>](mention://issue/<ISSUE_ID>)
+retry_count: <0..5>
+max_retries: 5
 ```
 
 `<branch-prefix>`、`<feature-slug>`、`<YYYYMMDD>` 直接从上游给出的工作分支和产物路径提取，不重新判型或生成。当前方案 Issue 的 `<CURRENT_ISSUE_ID>` / `<CURRENT_ISSUE_KEY>` 使用运行时注入的当前 Issue 上下文；未注入时执行：
@@ -28,7 +30,7 @@ melos issue list --status in_progress --assignee 方案设计专家 --output jso
 
 从结果中选择标题包含 `<feature-slug>` 且上游产出物路径一致的条目。
 
-缺少上游产出物、工作分支或上一阶段 Issue 链接时，先在当前 Issue 报告 `blocked`，不得自行补造变量。
+缺少上游产出物、工作分支、上一阶段 Issue 链接或重试计数时，先在当前 Issue 报告 `blocked`，不得自行补造变量。
 
 ### 第 2 步：同步上游固定版本
 
@@ -113,6 +115,8 @@ push 成功后执行 `git rev-parse HEAD`，把实际 commit SHA 用于交接回
 ## Pipeline
 - 上一阶段 issue: [<CURRENT_ISSUE_KEY>](mention://issue/<CURRENT_ISSUE_ID>)
 - 工作分支: <branch-prefix>/<feature-slug>-<YYYYMMDD>
+- retry_count: <RETRY_COUNT>
+- max_retries: 5
 
 ## 上游产出物
 - 需求分析: docs/features/<feature-slug>/00-requirement-analysis.md
@@ -155,10 +159,11 @@ rm ./next-issue-<NN>.md
 
 ## 异常处理与回流
 
-- **requirement gap**：在上一阶段 Issue 提交 finding，请求需求分析专家修订；不得创建实现 Issue。
+- 正向交接原样透传 `retry_count`，不得增加。
+- **requirement gap**：若 `retry_count < 5`，创建需求分析修订 Issue并传入 `retry_count + 1`；不得创建实现 Issue。
 - **design finding**：在同一路径修订 `01-solution-design.md`，重新 commit/push；旧 commit 的门禁失效。
 - **实现发现方案缺口**：软件工程师创建方案修订 Issue并分配给方案设计专家；修订后只重新创建受影响的下游 Issue。
-- **反复修订仍无法收敛**：停止自动流转，在上一阶段 Issue 提交人工决策包。
+- **达到上限**：`retry_count: 5` 再失败时禁止创建重试 Issue，使用 `[@all](mention://all/all)` 在当前 Issue 发布人工决策包。
 - **Git 冲突、权限、环境或外部依赖阻塞**：说明复现方式、责任人和恢复条件，不扩大范围规避阻塞。
 
 ## Skills
