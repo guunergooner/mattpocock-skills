@@ -93,6 +93,9 @@ issues/<YYYY-MM-DD>/<issue-slug>/
 
 ```yaml
 work_item: <child-issue-key>
+root_issue: <root-issue-key>
+root_issue_id: <root-issue-uuid>
+previous_issue: <previous-issue-key>
 role: <standard-role>
 stage: <positive-integer>
 attempt: <1..3>

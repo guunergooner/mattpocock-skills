@@ -93,6 +93,89 @@ flowchart TD
 - 缺失角色必须记录 `N/A + reason`，不得静默跳过。
 - 同一产物只允许一个 owner；并行分支必须有独立报告路径和 Git 分支。
 
+## 自动 Issue 与 Artifact 交接
+
+正向交接采用“上游 push Artifact → 创建并分配下游 Issue → 当前 Issue 进入 in_review”的原子顺序。不得先触发下游、后补 Artifact。
+
+```mermaid
+sequenceDiagram
+    participant TPM as Technical Project Manager
+    participant PM as Product Manager
+    participant TL as Tech Lead
+    participant SE as Software Engineer
+    participant QA as QA Engineer
+    participant H as Human
+
+    TPM->>PM: create todo child issue<br/>delivery state path@SHA
+    PM->>PM: write Product Spec + commit + push
+    PM->>TL: create todo child issue<br/>Product Spec path@SHA
+    PM-->>TPM: current issue = in_review + handoff receipt
+    TL->>TL: write Technical Plan/ADR + commit + push
+    TL->>SE: create ready implementation issue(s)<br/>Spec/Plan/ADR path@SHA
+    TL-->>TPM: current issue = in_review + handoff receipt
+    SE->>SE: code/test/report + commit + push + PR
+    SE->>QA: last ready implementation creates one QA issue<br/>candidate SHA + report paths
+    SE-->>TPM: implementation issue(s) = in_review
+    QA->>QA: independent verify + QA Report + commit + push
+    alt QA PASS
+        QA-->>TPM: root issue comment<br/>QA Report path@SHA + verdict
+        TPM->>H: request final acceptance
+    else QA FAIL and attempt < 3
+        QA->>PM: requirement_gap correction issue
+        QA->>TL: design_gap correction issue
+        QA->>SE: implementation_defect correction issue
+        Note over PM,QA: only the classified owner is triggered;<br/>fixed artifact recreates affected downstream issues
+    else QA FAIL and attempt = 3
+        QA-->>TPM: needs_human decision package
+        TPM->>H: stop automatic loop
+    end
+```
+
+每张下游 Issue 的 description 必须包含：
+
+```yaml
+root_issue: <ROOT_ISSUE_KEY>
+root_issue_id: <ROOT_ISSUE_ID>
+previous_issue: <CURRENT_ISSUE_KEY>
+stage: <N>
+attempt: <1..3>
+delivery_branch: <type>/<YYYY-MM-DD>/<issue-slug>
+input_refs:
+  - path: <repo-relative-path>
+    version: <commit-sha>
+output_path: <repo-relative-path>
+acceptance_criteria: []
+verification: []
+change_boundary: []
+blocked_by: []
+return_to: <next-role-or-root>
+```
+
+交接规则：
+
+1. 长 description 必须先写入 UTF-8 文件，再使用 `--description-file`；禁止 heredoc 或 inline 长文本。
+2. `--assignee` 是唯一 Agent 触发方式；description/comment 禁止再写 Agent mention，避免双 run。
+3. 下游输入必须为已经 push 的 `path@commit-sha`；本地未推送 commit 不可交接。
+4. 新 Issue 创建成功后，当前 Issue 才更新为 `in_review` 并通过 comment file 留回执。
+5. 所有阶段 Issue 都直接挂在根 Issue 下，`previous_issue` 表达流程前驱，避免形成难以汇总的多层 Issue 树。
+6. 并行实现者创建 QA 前必须检查根 Issue 子项；只允许一个 active QA Issue。
+7. `backlog` 只用于尚未满足 `blocked_by` 的 Issue；依赖满足后改为 `todo` 才触发 Agent。
+8. 创建下游 Issue 后，把当前 Issue 的人类订阅人继承到新 Issue；只继承 `member`，不额外订阅 Agent，确保最初发起人持续收到全链路动态。
+
+订阅者继承使用结构化输出；`<CURRENT_ISSUE_ID>` 和 `<NEW_ISSUE_ID>` 必须替换为实际 UUID：
+
+```bash
+melos issue subscriber list <CURRENT_ISSUE_ID> --output json \
+  | jq -r '.[] | select(.user_type == "member") | .user_id' \
+  | while read -r subscriber_id; do
+      melos issue subscriber add <NEW_ISSUE_ID> --user-id "$subscriber_id"
+    done
+```
+
+任一订阅操作失败时记录失败的 member ID 并在交接回执中披露；不重复创建下游 Issue。
+
+当前 CLI 没有 `issue children` 命令。需要检查 sibling/重复 QA 时，使用 `melos issue list --project <PROJECT_ID> --limit 200 --output json`，在结构化结果中按 `parent_issue_id == ROOT_ISSUE_ID`、title/role 和非终态 status 过滤；禁止假设不存在 sibling。
+
 ## 门禁输出
 
 ```yaml
