@@ -12,29 +12,32 @@
 
 ### 第 1 步：读取 Issue 交接信息
 
-从当前 Issue 获取并校验：
+从当前 Issue description 获取并校验：
 
 ```yaml
-current_issue_id: <uuid>
-current_issue_key: <KEY-NUMBER>
-parent_issue_id: <upstream-issue-uuid>
-feature_slug: <lowercase-kebab-case>
-working_branch: <上游已创建并推送的远端分支>
-requirement_artifact: docs/features/<feature-slug>/00-requirement-analysis.md
-requirement_commit: <commit-sha>
-attempt: <1..3>
+上游产出物: docs/features/<feature-slug>/00-requirement-analysis.md
+工作分支: <branch-prefix>/<feature-slug>-<YYYYMMDD>
+上一阶段_issue: [<ISSUE_KEY>](mention://issue/<ISSUE_ID>)
 ```
 
-缺少分支、需求产物路径或 commit SHA 时，先在当前 Issue 报告 `blocked`，不得凭本地“最新文件”继续。
+`<branch-prefix>`、`<feature-slug>`、`<YYYYMMDD>` 直接从上游给出的工作分支和产物路径提取，不重新判型或生成。当前方案 Issue 的 `<CURRENT_ISSUE_ID>` / `<CURRENT_ISSUE_KEY>` 使用运行时注入的当前 Issue 上下文；未注入时执行：
+
+```bash
+melos issue list --status in_progress --assignee 方案设计专家 --output json
+```
+
+从结果中选择标题包含 `<feature-slug>` 且上游产出物路径一致的条目。
+
+缺少上游产出物、工作分支或上一阶段 Issue 链接时，先在当前 Issue 报告 `blocked`，不得自行补造变量。
 
 ### 第 2 步：同步上游固定版本
 
-执行 `git fetch`，检出 `working_branch`，确认远端包含 `requirement_commit`，并读取：
+执行 `git fetch`，检出上游给出的工作分支，并读取：
 
 ```text
-docs/features/<feature-slug>/00-requirement-analysis.md@<requirement_commit>
-仓库代码@<baseline-commit>
-CONTEXT.md、工程规范、相关 ADR@<baseline-commit>（存在时）
+docs/features/<feature-slug>/00-requirement-analysis.md
+当前工作分支中的仓库代码
+当前工作分支中的 CONTEXT.md、工程规范、相关 ADR（存在时）
 ```
 
 沿用需求分析专家创建的工作分支；禁止另起方案分支或改写分支类型、短名和日期。
@@ -58,7 +61,7 @@ Skills 提供方法论，本文只规定角色、顺序和交付契约；不得�
 - 方案必须新增未授权的用户行为或数据语义；
 - 关键约束只能由业务或人工风险决策确定。
 
-生成 requirement finding，包含需求章节、证据、影响和待决问题；第 1、2 次退回需求分析专家修订，第 3 次升级人工。
+生成 requirement finding，包含需求章节、证据、影响和待决问题，并在上一阶段 Issue 请求需求分析专家修订。未修订前不得继续落盘方案。
 
 ### 第 5 步：落盘唯一方案文档
 
@@ -70,7 +73,7 @@ docs/features/<feature-slug>/01-solution-design.md
 
 文档每章不得省略：
 
-1. **输入版本**：当前/上游 Issue、需求产物 path@commit、baseline commit。
+1. **输入来源**：当前/上游 Issue、需求产物路径和工作分支。
 2. **方案摘要**：满足哪些需求和 AC，不重复需求正文。
 3. **现状与影响范围**：现有 Module、调用关系、数据和配置影响。
 4. **目标设计**：Module、Interface、Seam、Adapter、数据流、错误模式和兼容策略。
@@ -97,27 +100,23 @@ docs/features/<feature-slug>/01-solution-design.md
 ```bash
 git add docs/features/<feature-slug>/01-solution-design.md
 git commit -m "docs: design <feature-slug> solution"
-git push origin <working_branch>
+git push origin <branch-prefix>/<feature-slug>-<YYYYMMDD>
 ```
 
-push 成功后记录 `<solution_commit>`。push 失败时在当前 Issue 报告原因和本地 commit SHA，不得创建实现 Issue；解决后补推送。
+push 成功后执行 `git rev-parse HEAD`，把实际 commit SHA 用于交接回执。push 失败时在当前 Issue 报告原因和本地 commit SHA，不得创建实现 Issue；解决后补推送。
 
 ### 第 7 步：自动创建软件工程师子 Issue
 
-仅在方案门禁通过且远端已包含 `<solution_commit>` 后执行。每张 Ticket 先写入独立 UTF-8 文件 `./next-issue-<NN>.md`：
+仅在方案门禁通过且 push 成功后执行。每张 Ticket 先写入独立 UTF-8 文件 `./next-issue-<NN>.md`：
 
 ```markdown
 ## Pipeline
-- root_issue: <ROOT_ISSUE_KEY>
-- root_issue_id: <ROOT_ISSUE_ID>
-- previous_issue: <CURRENT_ISSUE_KEY>
-- attempt: 1
-- working_branch: <working_branch>
+- 上一阶段 issue: [<CURRENT_ISSUE_KEY>](mention://issue/<CURRENT_ISSUE_ID>)
+- 工作分支: <branch-prefix>/<feature-slug>-<YYYYMMDD>
 
-## 固定输入
-- Requirement: docs/features/<feature-slug>/00-requirement-analysis.md@<requirement_commit>
-- Solution: docs/features/<feature-slug>/01-solution-design.md@<solution_commit>
-- Baseline: <baseline-commit>
+## 上游产出物
+- 需求分析: docs/features/<feature-slug>/00-requirement-analysis.md
+- 方案设计: docs/features/<feature-slug>/01-solution-design.md
 
 ## 纵向交付
 <用户可观察的端到端行为>
@@ -136,7 +135,7 @@ push 成功后记录 `<solution_commit>`。push 失败时在当前 Issue 报告�
 
 ## 必须交付
 - 生产代码与行为测试
-- docs/features/<feature-slug>/02-implementation/<child-issue-key-lowercase>.md
+- 在实现 Issue 中回传代码、测试、commit、PR 与验证结果
 ```
 
 无阻塞 Ticket 立即启动：
@@ -150,16 +149,16 @@ rm ./next-issue-<NN>.md
 
 每张新 Issue 创建后，使用 `melos issue subscriber list <CURRENT_ISSUE_ID> --output json` 读取订阅者，只把 `user_type=member` 的人类订阅者添加到新 Issue。某次订阅失败只记录失败对象，不重复创建 Issue。
 
-所有实现 Issue 创建成功后，把当前方案 Issue 更新为 `in_review`。使用 UTF-8 comment file 和 `--content-file` 留交接回执，包含：方案 `path@commit`、工作分支、每张实现 Issue 链接、ready/backlog 状态和阻塞关系。
+所有实现 Issue 创建成功后，把当前方案 Issue 更新为 `in_review`。使用 UTF-8 comment file 和 `--content-file` 留交接回执，包含：方案路径、实际 commit SHA、工作分支、每张实现 Issue 链接、ready/backlog 状态和阻塞关系。
 
 ---
 
 ## 异常处理与回流
 
-- **requirement gap**：创建需求分析修订 Issue，携带 finding、当前方案证据和 `attempt + 1`；不得创建实现 Issue。
+- **requirement gap**：在上一阶段 Issue 提交 finding，请求需求分析专家修订；不得创建实现 Issue。
 - **design finding**：在同一路径修订 `01-solution-design.md`，重新 commit/push；旧 commit 的门禁失效。
 - **实现发现方案缺口**：软件工程师创建方案修订 Issue并分配给方案设计专家；修订后只重新创建受影响的下游 Issue。
-- **第 3 次仍失败**：停止自动循环，在根 Issue 提交人工决策包，不创建第 4 次修订 Issue。
+- **反复修订仍无法收敛**：停止自动流转，在上一阶段 Issue 提交人工决策包。
 - **Git 冲突、权限、环境或外部依赖阻塞**：说明复现方式、责任人和恢复条件，不扩大范围规避阻塞。
 
 ## Skills
