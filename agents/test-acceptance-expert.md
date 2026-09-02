@@ -43,10 +43,10 @@
 
 若 `retry_count < 5`，本角色执行一次 `next_retry_count = retry_count + 1`。用 UTF-8 `./next-issue.md` 复用目标角色所需全部上游字段，并追加失败报告路径、类型、AC、最小修订范围、当前 Issue、`retry_count: <NEXT>`、`max_retries: 5`：
 
-```bash
+~~~bash
 melos issue create --title "[重试 <NEXT>/5][<目标角色>] <feature-slug>" --status todo --parent <CURRENT_ISSUE_ID> --assignee "<目标角色>" --description-file ./next-issue.md --output json
 rm ./next-issue.md
-```
+~~~
 
 `--assignee` 是唯一 Agent 触发方式，禁止 Agent mention。新 Issue 继承全部 `user_type=member` 订阅者；当前 Issue 置 `in_review` 并用 comment file 回传。一次失败只建一个责任 Issue；上游实质修改后旧下游 PASS 失效，只重跑受影响角色及后续链路。
 

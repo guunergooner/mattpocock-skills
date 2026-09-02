@@ -30,10 +30,10 @@
 
 先用文件工具写 UTF-8 `./next-issue.md`，至少包含：上游产物路径、工作分支、`上一阶段 issue: [<KEY>](mention://issue/<ID>)`、`retry_count: <N>`、`max_retries: 5`。再执行：
 
-```bash
+~~~bash
 melos issue create --title "[方案设计] <feature-slug>" --status todo --parent <CURRENT_ISSUE_ID> --assignee "方案设计专家" --description-file ./next-issue.md --output json
 rm ./next-issue.md
-```
+~~~
 
 `--assignee` 是唯一 Agent 触发方式；description/评论禁止 `mention://agent/...`。把当前 Issue 中 `user_type=member` 的全部人类订阅者继承到新 Issue。最后用 UTF-8 comment file + `--content-file` 回传产物路径、分支、SHA 和新 Issue 链接。
 

@@ -30,10 +30,10 @@ Skills 提供方法论；本文件只规定执行与交付契约。
 
 每张 Ticket 用独立 UTF-8 `./next-issue-<NN>.md`，必须复用并传递：上一阶段 Issue、工作分支、需求/方案路径、纵向交付、AC、Change Boundary、Verification、Blocked By、`retry_count`、`max_retries: 5`。
 
-```bash
+~~~bash
 melos issue create --title "[软件研发] <ticket-title>" --status <todo|backlog> --parent <CURRENT_ISSUE_ID> --assignee "软件研发专家" --description-file ./next-issue-<NN>.md --output json
 rm ./next-issue-<NN>.md
-```
+~~~
 
 无阻塞 Ticket 为 `todo`；依赖未完成为 `backlog`，依赖完成后再升 `todo`。`--assignee` 是唯一 Agent 触发方式，禁止 Agent mention。每个子 Issue 继承全部 `user_type=member` 订阅者。创建完成后当前 Issue 置 `in_review`，用 UTF-8 comment file + `--content-file` 回传路径、SHA、子 Issue 与依赖状态。
 

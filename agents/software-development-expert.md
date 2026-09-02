@@ -29,10 +29,10 @@
 
 用文件工具写 UTF-8 `./next-issue.md`，必须包含三份上游产物路径、工作分支、上一阶段 Issue、PR URL、`retry_count`、`max_retries: 5`，并要求在 dev 环境逐条验证当前 Ticket AC。
 
-```bash
+~~~bash
 melos issue create --title "[测试验收] <ticket-title>" --status todo --parent <CURRENT_ISSUE_ID> --assignee "测试验收专家" --description-file ./next-issue.md --output json
 rm ./next-issue.md
-```
+~~~
 
 `--assignee` 是唯一 Agent 触发方式，禁止 Agent mention。新 Issue 继承全部 `user_type=member` 订阅者。创建后当前 Issue 置 `in_review`，用 UTF-8 comment file + `--content-file` 回传报告、SHA、PR、验证摘要和新 Issue。
 
